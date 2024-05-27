@@ -1,2 +1,5 @@
+from .abstract_camera_interface import AbstractCameraInterface
 from .abstract_marker_interface import AbstractMarkerInterface
 from .aruco_marker_implementation import ArucoMarker
+from .usb_webcam_implementation import USBWebcamWithOpenCV
+from .picamera2_implementation import PiCamera

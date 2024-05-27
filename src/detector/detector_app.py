@@ -24,7 +24,12 @@ import hjson
 import logging
 import os
 
-from src.detector.implementations import AbstractMarkerInterface, ArucoMarker
+from src.detector.implementations import \
+    AbstractCameraInterface, \
+    AbstractMarkerInterface, \
+    ArucoMarker, \
+    USBWebcamWithOpenCV, \
+    PiCamera
 
 
 logger = logging.getLogger(__name__)
@@ -33,7 +38,7 @@ logger = logging.getLogger(__name__)
 def create_app() -> FastAPI:
     detector_configuration_filepath: str = os.path.join(os.path.dirname(__file__), "..", "..", "data", "config.json")
     detector_configuration: DetectorConfiguration
-    #camera_interface: AbstractCameraInterface
+    camera_interface: AbstractCameraInterface
     marker_interface: AbstractMarkerInterface
 
     with open(detector_configuration_filepath, 'r') as infile:
@@ -41,10 +46,11 @@ def create_app() -> FastAPI:
         detector_configuration_dict = hjson.loads(detector_configuration_file_contents)
         detector_configuration = DetectorConfiguration(**detector_configuration_dict)
 
-    #camera_interface = Detector.USBWebcamWithOpenCV()
+    camera_interface = PiCamera()
+    # camera_interface = USBWebcamWithOpenCV(detector_configuration.camera_connection.usb_id)
     marker_interface = ArucoMarker()
     
-    detector = Detector(detector_configuration=detector_configuration,marker_interface=marker_interface)
+    detector = Detector(detector_configuration=detector_configuration,marker_interface=marker_interface,camera_interface=camera_interface)
     detector_app = FastAPI()
 
     # CORS Middleware
