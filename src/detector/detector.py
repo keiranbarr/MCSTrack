@@ -102,9 +102,9 @@ class Detector(MCastComponent):
     
     # Camera
     def internal_update_capture(self):
-        msg = self._camera_interface.internal_update_capture()
+        (severity, msg) = self._camera_interface.internal_update_capture()
         if msg:
-            self.add_status_message(msg)
+            self.add_status_message(severity, msg)
 
     def set_capture_device(self, **kwargs) -> EmptyResponse | ErrorResponse:
         return self._camera_interface.set_capture_device(**kwargs)

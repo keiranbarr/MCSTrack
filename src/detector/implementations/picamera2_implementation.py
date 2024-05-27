@@ -14,7 +14,7 @@ from src.common.structures.capture_status import CaptureStatus
 
 from src.detector.implementations import AbstractCameraInterface
 
-from picamera2 import Picamera2, Preview
+from picamera2 import Picamera2
 
 import base64
 import cv2
@@ -29,20 +29,16 @@ logger = logging.getLogger(__name__)
 
 class PiCamera(AbstractCameraInterface):
 
-    _capture: numpy.ndarray | None
+    _camera: Picamera2
     _captured_image: numpy.ndarray | None
+    _captured_timestamp_utc: datetime.datetime
+    _capture_status: CaptureStatus  # internal bookkeeping
 
     def __init__(self):
-        self._capture = None
         self._captured_image = None
         self._captured_timestamp_utc = datetime.datetime.min
 
-        self._capture_status = CaptureStatus
-        self._capture_status.status = CaptureStatus.Status.STOPPED
-
-        self._captured_timestamp_utc = datetime.datetime.min
-
-        self._capture_status = CaptureStatus
+        self._capture_status = CaptureStatus()
         self._capture_status.status = CaptureStatus.Status.STOPPED
 
         # TODO: DEBUGGING
@@ -52,13 +48,13 @@ class PiCamera(AbstractCameraInterface):
         self._camera.start()
 
     def __del__(self):
-        if self._capture is not None:
-            self._capture = numpy.empty
+        if self._captured_image is not None:
+            self._captured_image = numpy.empty
 
     def _detect_os_and_open_video(self):
         return self._camera.capture_array()
 
-    def internal_update_capture(self):
+    def internal_update_capture(self) -> tuple[str,str] | None:
         self._captured_image = self._camera.capture_array()
 
         if self._captured_image is None:
@@ -71,8 +67,8 @@ class PiCamera(AbstractCameraInterface):
 
     def set_capture_device(self, **kwargs) -> EmptyResponse | ErrorResponse:
         
-        self._capture = self._detect_os_and_open_video()
-        if self._capture is None:
+        self._captured_image = self._detect_os_and_open_video()
+        if self._captured_image is None:
             return ErrorResponse(message=f"Failed to open capture device")
         
         default_brightness = self._camera.camera_controls['Brightness'][2]
@@ -100,7 +96,7 @@ class PiCamera(AbstractCameraInterface):
             key="request",
             arg_type=SetCapturePropertiesRequest)
 
-        if self._capture is not None:
+        if self._captured_image is not None:
 
             # FPS and resolution change require the camera be off
             # While other settings require the camera be on
@@ -130,7 +126,7 @@ class PiCamera(AbstractCameraInterface):
         return GetCaptureDeviceResponse(capture_device_id=str("N/A"))
 
     def get_capture_properties(self, **_kwargs) -> GetCapturePropertiesResponse | ErrorResponse:
-        if self._capture is None:
+        if self._captured_image is None:
             return ErrorResponse(
                 message="The capture is not active, and properties cannot be retrieved.")
         else:
@@ -144,38 +140,18 @@ class PiCamera(AbstractCameraInterface):
                 contrast=self._camera.controls.Contrast,
                 sharpness=self._camera.controls.Sharpness)
             return ret
-        # TODO: Get powerline_frequency_hz and backlight_compensation
-
-    def get_capture_image(self, **kwargs) -> GetCaptureImageResponse:
-        """
-        :key request: GetCaptureImageRequest
-        """
-
-        request: GetCaptureImageRequest = get_kwarg(
-            kwargs=kwargs,
-            key="request",
-            arg_type=GetCaptureImageRequest)
-
-        encoded_frame: bool
-        encoded_image_rgb_single_row: numpy.array
-        encoded, encoded_image_rgb_single_row = cv2.imencode(request.format, self._captured_image)
-        encoded_image_rgb_bytes: bytes = encoded_image_rgb_single_row.tobytes()
-        encoded_image_rgb_base64 = base64.b64encode(encoded_image_rgb_bytes)
-        return GetCaptureImageResponse(
-            format=request.format,
-            image_base64=encoded_image_rgb_base64)
 
     def start_capture(self, **kwargs) -> MCastResponse:
-        if self._capture is not None:
+        if self._captured_image is not None:
             return EmptyResponse()
 
-        self._capture = self._detect_os_and_open_video()
+        self._captured_image = self._detect_os_and_open_video()
 
         self._capture_status.status = CaptureStatus.Status.RUNNING
         return EmptyResponse()
 
     def stop_capture(self, **kwargs) -> MCastResponse:
-        if self._capture is not None:
-            self._capture = None
+        if self._captured_image is not None:
+            self._captured_image = None
         self._capture_status.status = CaptureStatus.Status.STOPPED
         return EmptyResponse()

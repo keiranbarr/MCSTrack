@@ -24,12 +24,13 @@ from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
-# TODO: update type hints
 class USBWebcamWithOpenCV(AbstractCameraInterface):
 
     _capture: cv2.VideoCapture | None
     _captured_image: numpy.ndarray | None
+    _captured_timestamp_utc: datetime.datetime
     _capture_device_id: str | int
+    _capture_status: CaptureStatus  # internal bookkeeping
 
     def __init__(self, _capture_device_id):
         # move to camera class
@@ -38,16 +39,8 @@ class USBWebcamWithOpenCV(AbstractCameraInterface):
         self._captured_timestamp_utc = datetime.datetime.min
         self._capture_device_id = _capture_device_id
 
-        self._capture_status = CaptureStatus
+        self._capture_status = CaptureStatus()
         self._capture_status.status = CaptureStatus.Status.STOPPED
-
-        self._captured_timestamp_utc = datetime.datetime.min
-
-        self._capture_status = CaptureStatus
-        self._capture_status.status = CaptureStatus.Status.STOPPED
-
-        # TODO: DEBUGGING
-        self._capture_status.status = CaptureStatus.Status.RUNNING
 
     def __del__(self):
         if self._capture is not None:
@@ -59,7 +52,7 @@ class USBWebcamWithOpenCV(AbstractCameraInterface):
         else:
             return cv2.VideoCapture(capture_device_id)
 
-    def internal_update_capture(self):
+    def internal_update_capture(self) -> tuple[str,str] | None:
         grabbed_frame: bool
         grabbed_frame = self._capture.grab()
         if not grabbed_frame:
@@ -153,29 +146,6 @@ class USBWebcamWithOpenCV(AbstractCameraInterface):
                 sharpness=int(self._capture.get(cv2.CAP_PROP_SHARPNESS)),
                 gamma=int(self._capture.get(cv2.CAP_PROP_GAMMA)))
         # TODO: Get powerline_frequency_hz and backlight_compensation
-
-    def get_capture_image(self, **kwargs) -> GetCaptureImageResponse:
-        """
-        :key request: GetCaptureImageRequest
-        """
-
-        request: GetCaptureImageRequest = get_kwarg(
-            kwargs=kwargs,
-            key="request",
-            arg_type=GetCaptureImageRequest)
-
-        encoded_frame: bool
-        encoded_image_rgb_single_row: numpy.array
-        encoded, encoded_image_rgb_single_row = cv2.imencode(request.format, self._captured_image)
-        encoded_image_rgb_bytes: bytes = encoded_image_rgb_single_row.tobytes()
-        encoded_image_rgb_base64 = base64.b64encode(encoded_image_rgb_bytes)
-        return GetCaptureImageResponse(
-            format=request.format,
-            image_base64=encoded_image_rgb_base64)
-
-        # img_bytes = base64.b64decode(img_str)
-        # img_buffer = numpy.frombuffer(img_bytes, dtype=numpy.uint8)
-        # img = cv2.imdecode(img_buffer, cv2.IMREAD_COLOR)
 
     def start_capture(self, **kwargs) -> MCastResponse:
         if isinstance(self._capture_device_id, str) and self._capture_device_id.isnumeric():
