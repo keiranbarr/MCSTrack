@@ -113,7 +113,6 @@ class Detector(MCastComponent):
         return self._camera_interface.set_capture_properties(**kwargs)
 
     def get_capture_device(self, **_kwargs) -> GetCaptureDeviceResponse:
-        # why underscored kwargs?
         return self._camera_interface.get_capture_device(**_kwargs)
 
     def get_capture_properties(self, **_kwargs) -> GetCapturePropertiesResponse | ErrorResponse:
@@ -140,4 +139,3 @@ class Detector(MCastComponent):
 
     def internal_update_marker_corners(self):
         return self._marker_interface.internal_update_marker_corners(self._camera_interface._captured_image)
-

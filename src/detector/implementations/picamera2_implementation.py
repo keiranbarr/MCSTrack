@@ -15,14 +15,11 @@ from src.common.structures.capture_status import CaptureStatus
 from src.detector.implementations import AbstractCameraInterface
 
 from picamera2 import Picamera2
+from picamera2.controls import Controls
 
-import base64
-import cv2
 import datetime
 import logging
-import time
 import numpy
-import os
 from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
@@ -33,6 +30,7 @@ class PiCamera(AbstractCameraInterface):
     _captured_image: numpy.ndarray | None
     _captured_timestamp_utc: datetime.datetime
     _capture_status: CaptureStatus  # internal bookkeeping
+    _camera_controls: Controls
 
     def __init__(self):
         self._captured_image = None
@@ -41,18 +39,29 @@ class PiCamera(AbstractCameraInterface):
         self._capture_status = CaptureStatus()
         self._capture_status.status = CaptureStatus.Status.STOPPED
 
-        # TODO: DEBUGGING
-        self._capture_status.status = CaptureStatus.Status.RUNNING
-
         self._camera = Picamera2()
-        self._camera.start()
+        self._camera.configure("video")
+
+        default_value_index: int = 2
+        default_brightness = self._camera.camera_controls['Brightness'][default_value_index]
+        default_contrast = self._camera.camera_controls['Contrast'][default_value_index]
+        default_sharpness = self._camera.camera_controls['Sharpness'][default_value_index]
+        default_auto_exposure = self._camera.camera_controls['AeEnable'][default_value_index]
+        default_exposure = self._camera.camera_controls['ExposureValue'][default_value_index]
+
+        self._camera_controls = Controls(self._camera)
+
+        self._camera_controls.Brightness = default_brightness
+        self._camera_controls.Contrast = default_contrast
+        self._camera_controls.Sharpness = default_sharpness
+        self._camera_controls.AeEnable = default_auto_exposure
+        self._camera_controls.ExposureValue = default_exposure
+
+        self._camera.set_controls(self._camera_controls)
 
     def __del__(self):
         if self._captured_image is not None:
-            self._captured_image = numpy.empty
-
-    def _detect_os_and_open_video(self):
-        return self._camera.capture_array()
+            self._captured_image = numpy.empty()
 
     def internal_update_capture(self) -> tuple[str,str] | None:
         self._captured_image = self._camera.capture_array()
@@ -66,23 +75,6 @@ class PiCamera(AbstractCameraInterface):
         self._captured_timestamp_utc = datetime.datetime.utcnow()
 
     def set_capture_device(self, **kwargs) -> EmptyResponse | ErrorResponse:
-        
-        self._captured_image = self._detect_os_and_open_video()
-        if self._captured_image is None:
-            return ErrorResponse(message=f"Failed to open capture device")
-        
-        default_brightness = self._camera.camera_controls['Brightness'][2]
-        default_contrast = self._camera.camera_controls['Contrast'][2]
-        default_sharpness = self._camera.camera_controls['Sharpness'][2]
-        default_auto_exposure = self._camera.camera_controls['AeEnable'][2]
-        default_exposure = self._camera.camera_controls['ExposureValue'][2]
-
-        self._camera.controls.Brightness = default_brightness
-        self._camera.controls.Contrast = default_contrast
-        self._camera.controls.Sharpness = default_sharpness
-        self._camera.controls.AeEnable = default_auto_exposure
-        self._camera.controls.ExposureValue = default_exposure
-        
         return EmptyResponse()
 
     # noinspection DuplicatedCode
@@ -98,28 +90,27 @@ class PiCamera(AbstractCameraInterface):
 
         if self._captured_image is not None:
 
-            # FPS and resolution change require the camera be off
-            # While other settings require the camera be on
             self._camera.stop()
             if request.resolution_x_px is not None and request.resolution_y_px is not None:
                 self._camera.video_configuration.size = (request.resolution_x_px,request.resolution_y_px)
             if request.fps is not None:
                 self._camera.video_configuration.controls.FrameRate = request.fps
             self._camera.configure("video")
-            self._camera.start()
 
             if request.auto_exposure is not None:
-                self._camera.controls.AeEnable = request.auto_exposure
-            # TODO: how to enforce values be entered in the proper range?
+                self._camera_controls.AeEnable = request.auto_exposure
+            # TODO: how to enforce values in gui be entered in the proper range?
             if request.exposure is not None:
-                self._camera.controls.ExposureValue = request.exposure
+                self._camera_controls.ExposureValue = request.exposure
             if request.brightness is not None:
-                self._camera.controls.Brightness = request.brightness
+                self._camera_controls.Brightness = request.brightness
             if request.contrast is not None:
-                self._camera.controls.Contrast = request.contrast
+                self._camera_controls.Contrast = request.contrast
             if request.sharpness is not None:
-                self._camera.controls.Sharpness = request.sharpness
-            # no gamma
+                self._camera_controls.Sharpness = request.sharpness
+
+            self._camera.set_controls(self._camera_controls)
+            self._camera.start()
         return EmptyResponse()
 
     def get_capture_device(self, **_kwargs) -> GetCaptureDeviceResponse:
@@ -134,19 +125,16 @@ class PiCamera(AbstractCameraInterface):
                 resolution_x_px=int(self._camera.video_configuration.size[0]),
                 resolution_y_px=int(self._camera.video_configuration.size[1]),
                 fps=int(round(self._camera.video_configuration.controls.FrameRate)),
-                auto_exposure=bool(self._camera.controls.AeEnable),
-                exposure=int(self._camera.controls.ExposureValue),
-                brightness=self._camera.controls.Brightness,
-                contrast=self._camera.controls.Contrast,
-                sharpness=self._camera.controls.Sharpness)
+                brightness=self._camera_controls.Brightness,
+                auto_exposure=bool(self._camera_controls.AeEnable),
+                exposure=int(self._camera_controls.ExposureValue),
+                contrast=self._camera_controls.Contrast,
+                sharpness=self._camera_controls.Sharpness)
             return ret
 
     def start_capture(self, **kwargs) -> MCastResponse:
-        if self._captured_image is not None:
-            return EmptyResponse()
-
-        self._captured_image = self._detect_os_and_open_video()
-
+        self._camera.start()
+        self._captured_image = self._camera.capture_array()
         self._capture_status.status = CaptureStatus.Status.RUNNING
         return EmptyResponse()
 
@@ -154,4 +142,5 @@ class PiCamera(AbstractCameraInterface):
         if self._captured_image is not None:
             self._captured_image = None
         self._capture_status.status = CaptureStatus.Status.STOPPED
+        self._camera.stop()
         return EmptyResponse()
