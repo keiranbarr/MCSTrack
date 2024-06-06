@@ -15,3 +15,4 @@ from .mcast_component import MCastComponent
 from .mcast_websocket_send_recv import mcast_websocket_send_recv
 from .standard_resolutions import StandardResolutions
 from .status_message_source import StatusMessageSource
+from .mcast_configuration import MCastConfiguration
