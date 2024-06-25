@@ -1,3 +1,4 @@
+import logging
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
@@ -9,7 +10,13 @@ from src.detector.exceptions.update_capture_error import UpdateCaptureError
 
 app = FastAPI()
 
-connector = Connector(serial_identifier="SlicerConnector")
+logging.basicConfig(level=logging.INFO)
+
+connector = Connector(serial_identifier="SlicerConnector",
+                      send_status_messages_to_logger=True)
+
+connector.add_status_message(severity="info",
+                             message="startup")
 
 class ConnectionStaticModel(BaseModel):
     label: str
@@ -65,11 +72,31 @@ def get_live_detector_frame(detector_label: str):
     return frame
 
 @app.post("/start_tracking")
-def start_tracking(mode: str = Connector.StartupMode.DETECTING_AND_SOLVING):
-    connector.start_tracking(mode=mode)
-    return {"message": "Tracking started"}
+def start_tracking():
+    try:
+        connector.start_tracking()
+    except Exception as e:
+        connector.add_status_message(
+            severity="error",
+            message=f"Exception occurred while starting tracking: {str(e)}")
+
 
 @app.post("/stop_tracking")
 def stop_tracking():
     connector.stop_tracking()
     return {"message": "Tracking stopped"}
+
+# TODO: should I combine the below two with the get live detector frame
+@app.post("/update_loop")
+def update_loop():
+    connector.update_loop()
+
+@app.post("/do_update_frames_for_connections")
+async def do_update_frames_for_connections():
+    try:
+        await connector.do_update_frames_for_connections()
+    except Exception as e:
+        connector.add_status_message(
+            severity="error",
+            message=f"Exception occurred in update frames: {str(e)}")
+    

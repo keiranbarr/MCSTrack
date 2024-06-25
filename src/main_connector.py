@@ -7,6 +7,7 @@ def main():
     uvicorn.run(
         app,
         reload=False,
+	host="0.0.0.0",
         port=8002,
         log_level=logging.INFO)
 
