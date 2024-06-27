@@ -50,15 +50,16 @@ def add_connection(connection_static: ConnectionStaticModel):
             message=message)
         return
 
-@app.post("/begin_connecting/{label}")
-def begin_connecting(label: str):
-    connector.begin_connecting(label)
-    return {"message": f"Started connecting to {label}"}
+# Will be removed when pull request is merged
+# @app.post("/begin_connecting/{label}")
+# def begin_connecting(label: str):
+#     connector.begin_connecting(label)
+#     return {"message": f"Started connecting to {label}"}
 
-@app.post("/begin_disconnecting/{label}")
-def begin_disconnecting(label: str):
-    connector.begin_disconnecting(label)
-    return {"message": f"Started disconnecting from {label}"}
+# @app.post("/begin_disconnecting/{label}")
+# def begin_disconnecting(label: str):
+#     connector.begin_disconnecting(label)
+#     return {"message": f"Started disconnecting from {label}"}
 
 @app.get("/get_status")
 def get_status():
@@ -71,6 +72,7 @@ def get_live_detector_frame(detector_label: str):
         raise UpdateCaptureError(severity="error", message="Could not get live detector frame")
     return frame
 
+# Will change to start_up()
 @app.post("/start_tracking")
 def start_tracking():
     try:
@@ -80,23 +82,23 @@ def start_tracking():
             severity="error",
             message=f"Exception occurred while starting tracking: {str(e)}")
 
-
+# Will change to shut_down() (?)
 @app.post("/stop_tracking")
 def stop_tracking():
     connector.stop_tracking()
     return {"message": "Tracking stopped"}
 
-# TODO: should I combine the below two with the get live detector frame
+# Will change to update()
 @app.post("/update_loop")
 def update_loop():
     connector.update_loop()
 
-@app.post("/do_update_frames_for_connections")
-async def do_update_frames_for_connections():
-    try:
-        await connector.do_update_frames_for_connections()
-    except Exception as e:
-        connector.add_status_message(
-            severity="error",
-            message=f"Exception occurred in update frames: {str(e)}")
+# @app.post("/do_update_frames_for_connections")
+# async def do_update_frames_for_connections():
+#     try:
+#         await connector.do_update_frames_for_connections()
+#     except Exception as e:
+#         connector.add_status_message(
+#             severity="error",
+#             message=f"Exception occurred in update frames: {str(e)}")
     
